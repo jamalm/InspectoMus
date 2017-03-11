@@ -1,0 +1,56 @@
+#include <time.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <mqueue.h>
+#include "log.h"
+#include "timer.h"
+
+int StartTimer(char* Qname)
+{
+    //create time stuff
+    time_t now;
+    struct tm midnight;
+    double seconds;
+    //queue stuff here 
+    mqd_t mq;
+    char queueWBuffer[1024];
+
+    //get current time
+    time(&now);
+    
+    midnight = *localtime(&now);
+
+    //set midnight to be 00:00am +1 day ahead of today
+    midnight.tm_hour = 9;
+    midnight.tm_min = 35;
+    midnight.tm_sec = 0;
+    //midnight.tm_mday = midnight.tm_mday + 1;
+    
+    /*Open Message queue*/
+    mq = mq_open(Qname, O_WRONLY);
+
+
+    //waiting on midnight
+    while(1)
+    {
+        //check the time difference to start
+        time(&now);
+        seconds = difftime(mktime(&midnight), now);
+        if(seconds==0)
+        {
+            char* midnightMsg = "Midnight";
+            //if it is midnight, send a message to the queue for the daemon to read
+            memset(queueWBuffer, 0, 1024);
+            strcpy(queueWBuffer, midnightMsg);
+            mq_send(mq, queueWBuffer, 1024, 0);
+            mq_close(mq);
+            //close timer after operation complete
+            return 0;
+        }
+        sleep(1);
+    }
+    //should not get this far
+    return -1;
+}
+
