@@ -22,8 +22,8 @@ int StartTimer(char* Qname)
     midnight = *localtime(&now);
 
     //set midnight to be 00:00am +1 day ahead of today
-    midnight.tm_hour = 9;
-    midnight.tm_min = 35;
+    midnight.tm_hour = 12;
+    midnight.tm_min = 37;
     midnight.tm_sec = 0;
     //midnight.tm_mday = midnight.tm_mday + 1;
     

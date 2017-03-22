@@ -21,12 +21,13 @@ mqd_t CreateMasterQueue(char* name)
     /* Set Attributes of Queue*/
 
     q_attrs.mq_flags = 0;
-    q_attrs.mq_maxmsg = 100;
+    q_attrs.mq_maxmsg = 10;
     q_attrs.mq_msgsize = 1024;
     q_attrs.mq_curmsgs = 0;
 
     /* create Queue */
-    mq = mq_open(name, O_CREAT | O_RDONLY, 0644, &q_attrs);
+    mq = mq_open("/Daemon_Manager", O_CREAT | O_RDONLY, 0755, &q_attrs);
+
     if(mq == -1)
     {
         printf("\nerror encountered %s\n", strerror(errno));

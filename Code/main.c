@@ -28,7 +28,7 @@ int main()
 {
 
     
-    char* QueueName = "Daemon_Manager";
+    char* QueueName = "/Daemon_Manager";
     //2 Phases
     //Active Phase
     //Dormant Phase
