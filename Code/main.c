@@ -3,9 +3,12 @@
 #include <mqueue.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include "log.h"
 #include "MessageQueue.h"
 #include "timer.h"
+#include "Auditor.h"
+#include "Backup.h"
 
 /*
 Author: Jamal Mahmoud - C13730921
@@ -26,7 +29,7 @@ Dormant Phase
 
 int main()
 {
-
+	pid_t pid;
     
     char* QueueName = "/Daemon_Manager";
     //2 Phases
@@ -39,26 +42,26 @@ int main()
     if(mq==-1)
     {
         printf("ERROR: Opening Message Queue Failed!\n Exiting...\n");
+        LogErr("Queue", "Error Opening");
         exit(0);
     } 
     else 
     {
+	    LogDaemon("Queue","Created");
         printf("Queue Created!\n");
-        //start listening
-
-        //if something happens, close queue
-        //CloseQueue(mq, QueueName);
 
     }
-    
+
     //Create Timer.
-    pid_t pid = fork();
+    
+    pid = fork();
     if(pid == 0)
     {
+    	printf("\nCHILD\n");
         //start timer for child process
         if(StartTimer(QueueName)==0)
         {
-            printf("Timer Closed successfully\n");
+            printf("\nTimer Closed successfully\n");
             exit(0);
         }
         else 
@@ -66,22 +69,124 @@ int main()
             printf("Something went wrong with the timer!\n");
             exit(-1);
         }
-    }
-
-    if(pid != 0)
+    }else 
     {
-        //parent watches for messages incoming from the queue
-        char* message = Listen(mq);
-        printf("Message received from timer: %s", message);
+    	printf("PARENT: child timer pid = %d\n", pid);
     }
 
+
+    
     //Begin Dormant Phase
     //Start Process with Auditd
+    pid = fork();
+    if(pid == 0)
+    {
+    	RemoveRules();
+    }
+    else 
+	{
+		printf("PARENT: child removerule pid = %d\n", pid);
+	}
+    pid = fork();
+    if(pid == 0)
+    {
+        AddRules();
+    }
+    else 
+	{
+		printf("PARENT: child addrule pid = %d\n", pid);
+	}
+
     //Begin Active Phase
     //Lock out other users from directory
     //Create process to Create Backup
     //Create process to Create Transfer using changelog 
+    
+    if(pid != 0)
+    {
+    	while(1)
+    	{
+    	    //parent watches for messages incoming from the queue
+		    char* message = Listen(mq);
+		    printf("\nMessage received from queue: %s\n", message);
 
+		    
+		    //if message reads midnight, timer has hit 0, change to active phase
+		    if(strncmp(message, "Midnight", sizeof(message)) == 0)
+		    {
+		    	//it is midnight, start active phase of locking, backing up and transfer
+		    	LogDaemon("Phase", "Active");
+		    	
+		    	//lock directory
+		    	pid = fork();
+		    	if(pid == 0)
+		    	{
+		    		Lockup(QueueName);
+		    		exit(-1);
+		    	}
+		    	else 
+		    	{
+		    		printf("PARENT: child lock pid = %d\n", pid);
+		    	}
+		    } else if(strncmp(message, "Locked", sizeof(message)) == 0)
+		    {
+		    	pid = fork();
+		    	if(pid == 0)
+		    	{
+		    		Backup(QueueName);
+		    		exit(-1);
+		    	}
+		    	else 
+		    	{
+		    		printf("PARENT: child backup pid = %d\n", pid);
+		    	}
+		    } else if(strncmp(message, "Backed Up", sizeof(message)) == 0)
+		    {
+		    	pid = fork();
+		    	if(pid == 0)
+		    	{
+		    		Transfer(QueueName);
+		    		exit(-1);
+		    	}
+		    	else 
+		    	{
+		    		printf("PARENT: child transfer pid = %d\n", pid);
+		    	}
+		    } else if(strncmp(message, "Transferred", sizeof(message)) == 0)
+		    {
+		    	pid = fork();
+		    	if(pid == 0)
+		    	{
+		    		Unlock(QueueName);
+		    		exit(-1);
+		    	}
+		    	else
+		    	{
+		    		printf("PARENT: child unlock pid = %d\n", pid);
+		    	}
+		    } else if(strncmp(message, "Unlocked", sizeof(message)) == 0)
+		    {
+		    	LogDaemon("Phase", "Dormant");
+		    	pid = fork();
+				if(pid == 0)
+				{
+					if(StartTimer(QueueName)==0)
+					{
+						printf("\nTimer Closed successfully\n");
+						exit(0);
+					}
+					else 
+					{
+						printf("Something went wrong with the timer!\n");
+						exit(-1);
+					}
+				}else 
+				{
+					printf("PARENT: child timer pid = %d\n", pid);
+				}
+		    }
+    	}
+    }
     CloseQueue(mq, QueueName);
     return 0;
 }

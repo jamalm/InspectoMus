@@ -22,9 +22,9 @@ int StartTimer(char* Qname)
     midnight = *localtime(&now);
 
     //set midnight to be 00:00am +1 day ahead of today
-    midnight.tm_hour = 12;
-    midnight.tm_min = 37;
-    midnight.tm_sec = 0;
+    //midnight.tm_hour = 0;
+    //midnight.tm_min = 0;
+    midnight.tm_sec = midnight.tm_sec+2;
     //midnight.tm_mday = midnight.tm_mday + 1;
     
     /*Open Message queue*/
@@ -52,5 +52,20 @@ int StartTimer(char* Qname)
     }
     //should not get this far
     return -1;
+}
+
+char* GetDate()
+{
+	char* date = malloc(sizeof(char)*100);
+	//create time stuff
+    time_t now;
+    struct tm* timeinfo;
+    
+    //get current time
+    time(&now);
+    timeinfo = localtime(&now);
+
+    strftime(date, sizeof(date)*2, "%e-%m-%G", timeinfo);
+    return date;
 }
 

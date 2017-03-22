@@ -1,11 +1,20 @@
-objects = main.o logger.o MessageQueue.o timer.o
-headers = log.h MessageQueue.h timer.h
+daemonObjects = main.o logger.o MessageQueue.o timer.o Auditor.o Backup.o
+programs = DaemonTest
+headers = log.h MessageQueue.h timer.h Auditor.h Backup.h
 
-DaemonTest : $(objects)
-	gcc -o DaemonTest $(objects) -lrt -g
+
+DaemonTest : $(daemonObjects)
+	gcc -o DaemonTest $(daemonObjects) -lrt -g
+
 
 main.o : main.c $(headers)
 	gcc -c main.c -lrt -g
+	
+Backup.o : Backup.c $(headers)
+	gcc -c Backup.c -lrt -g
+	
+Auditor.o : Auditor.c $(headers)
+	gcc -c Auditor.c -lrt -g
 
 timer.o : timer.c timer.h log.h
 	gcc -c timer.c -lrt -g
@@ -17,4 +26,4 @@ MessageQueue.o : MessageQueue.c MessageQueue.h
 	gcc -c MessageQueue.c -lrt -g
 
 clean: 
-	rm $(objects) DaemonTest
+	rm $(objects) $(programs)

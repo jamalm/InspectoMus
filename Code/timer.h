@@ -2,6 +2,6 @@
 #define TIMER_H
 
 int StartTimer(char* Qname);
-
+char* GetDate();
 #endif
 //TIMER_H

@@ -3,6 +3,7 @@
 #include <syslog.h>
 #include <unistd.h>
 
+//for standard logs from user activity
 void Log(char* name, char* message)
 {
     openlog(name, LOG_PID|LOG_CONS, LOG_USER);
@@ -10,6 +11,7 @@ void Log(char* name, char* message)
     closelog();
 }
 
+//for warnings
 void LogWarning(char* name, char* message)
 {
     openlog(name, LOG_PID|LOG_CONS, LOG_USER);
@@ -17,6 +19,7 @@ void LogWarning(char* name, char* message)
     closelog();
 }
 
+//for errors
 void LogErr(char* name, char* message)
 {
     openlog(name, LOG_PID|LOG_CONS, LOG_USER);
@@ -24,6 +27,7 @@ void LogErr(char* name, char* message)
     closelog();
 }
 
+//for the daemon's personal logs
 void LogDaemon(char* name, char* message)
 {
     openlog(name, LOG_PID|LOG_CONS, LOG_DAEMON);

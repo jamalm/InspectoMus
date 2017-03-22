@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include "MessageQueue.h"
+#include "log.h"
 
 
 
@@ -37,7 +38,8 @@ mqd_t CreateMasterQueue(char* name)
 
 char* Listen(mqd_t mq)
 {
-    char buffer [1024+1];
+    //char buffer [1024+1];
+    char *buffer = (char *)malloc(sizeof(char)*(1024+1));
     while(1)
     {
         ssize_t bytes_read;
@@ -46,16 +48,14 @@ char* Listen(mqd_t mq)
         bytes_read = mq_receive(mq, buffer, 1024, NULL);
 
         buffer[bytes_read] = '\0';
-        if(strncmp(buffer, '\0', sizeof(buffer)) > 0)
-        {
-            return buffer;
-        }
+        return buffer;
     }
 }
 
 void CloseQueue(mqd_t mq, char* Qname)
 {
-    printf("Closing Queue..\n");
+    printf("\nClosing Queue..\n");
+    LogDaemon("Queue", "Closed");
     mq_close(mq);
     mq_unlink(Qname);
 
