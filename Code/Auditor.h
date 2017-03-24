@@ -3,6 +3,7 @@
 
 void AddRules();
 void RemoveRules();
+void AuditReport();
 
 #endif
 //AUDITOR_H_

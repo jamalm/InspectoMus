@@ -9,10 +9,10 @@
 #include "Backup.h"
 
 //for locking/unlocking directories
-char* lockperms[] = {"chmod", "-R", "700","/var/www/html", NULL};
-char* unlockperms[] = {"chmod", "-R", "775","/var/www/html", NULL};
+char* lockperms[] = {"chmod", "-R", "000","/var/www/html/internal", NULL};
+char* unlockperms[] = {"chmod", "-R", "777","/var/www/html/internal", NULL};
 
-char* Replace(char*, char*, char*);
+char* Replace(const char*, char*, char*);
 
 void Lockup(char* Qname)
 {
@@ -45,7 +45,7 @@ void Unlock(char* Qname)
     strcpy(queueWBuffer, "Unlocked");
     mq_send(mq, queueWBuffer, 1024, 0);
     mq_close(mq);
-            
+           
 	execvp("chmod", unlockperms);
 	LogErr("File Access", "Failed");
 	exit(127);
@@ -64,6 +64,7 @@ void Backup(char* Qname)
 	strcat(pathToFile,"/var/www/html/backups/");
 	strcat(pathToFile, GetDate());
 	strcat(pathToFile, ".tar.gz");
+	
 
 
 	char* tarCommands[] = {"tar", "-cpzf", pathToFile, "/var/www/html/live", NULL};
@@ -87,27 +88,60 @@ void Transfer(char* Qname)
 	Log("Backup", "Transferring files now");
 	//only transfer newly modified files
 	FILE *fp;
-	int status;
+	int status = 0;
 	char files[1024];
-	fp = popen("find /var/www/html/internal -mtime 0 -print", "r");
+	fp = popen("find /var/www/html/internal -daystart -mtime 0 -print", "r");
 	
 	while(fgets(files, sizeof(files), fp) != NULL)
 	{
-		FILE* fp2;
+		Log("FilePathName", "Just Inside loop");
+		//Generate a list of updated files and then
 		//overwrite files in live with modified files in internal folders
-		//first get dest folder
+		FILE* fp2;
+		//first we copy the file over to the record, 
+		Log("FilePathName", "filename is being created");
+		char filename[41] = "/var/www/html/backups/updates/";
+		Log("FilePathName", "date is being created");
+		char * date = GetDate();
+		Log("FilePathName", date);
+		strcat(filename, date);
+		Log("FilePathName", filename);
+		fp2 = fopen(filename, "a");
+		fprintf(fp2, "%s", files);
+		fclose(fp2);
+		
+				
+		//now get dest folder
 		char* destFile = Replace(files, "internal", "live");
+		
 		//create path
 		char pathToFile[1024];
-		strcat(pathToFile, "cp ");
+		memset(pathToFile, 0, sizeof(pathToFile));
+		strcat(pathToFile, "cp -Ru ");
+		strtok(files, "\n");
+		strcat(files, " ");
+		strcat(files, destFile);
 		strcat(pathToFile, files);
-		strcat(pathToFile, " ");
-		strcat(pathToFile, destFile);
-		Log("Transferring",files);
 		
-		fp2 = popen(pathToFile, "w+");
-		//pclose(fp2);
+		fp2 = popen(pathToFile, "r");
+		if(fp2 == NULL)
+		{
+			LogErr("Transfer", "Pipe is broken");
+		}
+		pclose(fp2);
+		
+		
+		//for day zero internal root dir removal 
+		if(strcmp(files,"/var/www/html/internal /var/www/html/live\n") == 0)
+		{
+			FILE *fp3;
+			fp3 = popen("rm -rf /var/www/html/live/internal", "r");
+			pclose(fp3);
+			LogWarning("Duplicate", "Removed Duplicated root internal folder");
+		}
+		
 	}
+
 	
 	status = pclose(fp);
 	memset(queueWBuffer, 0, 1024);
@@ -116,18 +150,33 @@ void Transfer(char* Qname)
     mq_close(mq);
 }
 
-char* Replace(char* directory, char* orig, char* new)
+char *Replace(const char *str, char *orig, char *rep)
 {
-	static char buffer[4096];
+	char buffer[4096];
 	char *p;
 	
-	if(!(p = strstr(directory, orig)))	//if orig is not in directory
-		return directory;
-		
-	strncpy(buffer, directory, p-directory);	//copy chars from directory start to orig start
-	buffer[p-directory] = '\0';
+	if(!(p = strstr(str, orig)))	//is orig even in str?
+	{
+		return str;
+	}
+	//size_t newlen = strlen(str) - strlen(orig) + strlen(rep);
+	//char buffer[newlen+1];
 	
-	sprintf(buffer+(p-directory), "%s%s", new, p+strlen(orig));
+	//copy the first segment of the path
+	//memcpy(buffer, str, p - str);
 	
+	//copy the replacement word
+	//memcpy(buffer + (p - str), rep, strlen(rep));
+	
+	//copy the end segment of the path
+	//strcpy(buffer +(p - str) + strlen(rep), p + strlen(orig));
+	
+	//return buffer;
+	
+	strncpy(buffer, str, p-str);	//copy chars from str to orig
+	buffer[p-str] = '\0';
+	
+	sprintf(buffer + (p-str), "%s%s", rep, p+strlen(orig));
+
 	return buffer;
 }

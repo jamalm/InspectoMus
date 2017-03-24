@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <signal.h>
 #include "log.h"
 #include "MessageQueue.h"
 #include "timer.h"
@@ -25,10 +26,57 @@ Active Phase
 Dormant Phase
 1. Watch Directories using Auditd and log any changes committed.
 2. Wait for Executive order or Timer to begin Active Phase.
+
+Side Notes:
+For those that don't know
+Daemon: Runs around in the shadows(background) doing devilish deeds
 */
 
 int main()
 {
+	//create daemon process
+	int daemonPID = fork();
+	pid_t timerPID;
+	if(daemonPID > 0)
+	{
+		//parent
+		Log("Startup", "Daemon Initialised");
+		exit(EXIT_SUCCESS);	
+	} else if(daemonPID == 0)
+	{
+		//child
+		while(getppid() != 1)
+		{
+			LogDaemon("Init", "Waiting for parent to terminate");
+			sleep(1);
+		}
+		umask(0);
+		if(setsid() < 0)
+		{
+			LogErrDaemon("Set SID", "Failure");
+			exit(EXIT_FAILURE);
+		} else 
+		{
+			LogDaemon("Init sid", "Success");
+		}
+		
+		if(chdir("/") < 0)
+		{
+			LogErrDaemon("ChangeDir", "Failure");
+			exit(EXIT_FAILURE);
+		} else 
+		{
+			LogDaemon("Init chdir", "Success");
+		}
+		//release IO Conns
+		int fd;
+		for(fd = sysconf(_SC_OPEN_MAX); fd >= 0; fd --)
+		{
+			close(fd);
+		} 
+		signal(SIGCHLD, SIG_IGN);
+		LogDaemon("Init", "Completed");
+	}
 	pid_t pid;
     
     char* QueueName = "/Daemon_Manager";
@@ -48,30 +96,24 @@ int main()
     else 
     {
 	    LogDaemon("Queue","Created");
-        printf("Queue Created!\n");
-
     }
 
     //Create Timer.
     
-    pid = fork();
-    if(pid == 0)
+    timerPID = fork();
+    if(timerPID == 0)
     {
-    	printf("\nCHILD\n");
         //start timer for child process
-        if(StartTimer(QueueName)==0)
+        if(StartTimer(QueueName)== 0)
         {
-            printf("\nTimer Closed successfully\n");
-            exit(0);
+            Log("Timer", "Successfully Closed");
+            exit(EXIT_SUCCESS);
         }
         else 
         {
-            printf("Something went wrong with the timer!\n");
-            exit(-1);
+        	LogErr("Timer", "Failed to close successfully");
+            exit(EXIT_FAILURE);
         }
-    }else 
-    {
-    	printf("PARENT: child timer pid = %d\n", pid);
     }
 
 
@@ -82,20 +124,17 @@ int main()
     if(pid == 0)
     {
     	RemoveRules();
+    	exit(1);
     }
-    else 
-	{
-		printf("PARENT: child removerule pid = %d\n", pid);
-	}
+    
     pid = fork();
     if(pid == 0)
     {
+    	sleep(1);
         AddRules();
+        exit(1);
     }
-    else 
-	{
-		printf("PARENT: child addrule pid = %d\n", pid);
-	}
+    
 
     //Begin Active Phase
     //Lock out other users from directory
@@ -104,29 +143,35 @@ int main()
     
     if(pid != 0)
     {
+    	LogDaemon("Phase", "Dormant");
+    	AuditReport();
     	while(1)
     	{
+    		
     	    //parent watches for messages incoming from the queue
 		    char* message = Listen(mq);
-		    printf("\nMessage received from queue: %s\n", message);
+		    LogDaemon("Message From Queue", message);
 
-		    
+		    if(strncmp(message, "Shutdown", sizeof(message)) == 0)
+		    {
+		    	LogDaemon("Status", "Shutting Down");
+		    	kill(timerPID, SIGKILL);
+		    	LogDaemon("Timer", "Killing timer");
+		    	break;
+		    }
 		    //if message reads midnight, timer has hit 0, change to active phase
 		    if(strncmp(message, "Midnight", sizeof(message)) == 0)
 		    {
 		    	//it is midnight, start active phase of locking, backing up and transfer
 		    	LogDaemon("Phase", "Active");
-		    	
+		    	kill(timerPID, SIGKILL);
+		    	LogDaemon("Timer", "Killing timer");
 		    	//lock directory
 		    	pid = fork();
 		    	if(pid == 0)
 		    	{
 		    		Lockup(QueueName);
 		    		exit(-1);
-		    	}
-		    	else 
-		    	{
-		    		printf("PARENT: child lock pid = %d\n", pid);
 		    	}
 		    } else if(strncmp(message, "Locked", sizeof(message)) == 0)
 		    {
@@ -136,21 +181,13 @@ int main()
 		    		Backup(QueueName);
 		    		exit(-1);
 		    	}
-		    	else 
-		    	{
-		    		printf("PARENT: child backup pid = %d\n", pid);
-		    	}
 		    } else if(strncmp(message, "Backed Up", sizeof(message)) == 0)
 		    {
 		    	pid = fork();
 		    	if(pid == 0)
 		    	{
 		    		Transfer(QueueName);
-		    		exit(-1);
-		    	}
-		    	else 
-		    	{
-		    		printf("PARENT: child transfer pid = %d\n", pid);
+		    		exit(1);
 		    	}
 		    } else if(strncmp(message, "Transferred", sizeof(message)) == 0)
 		    {
@@ -158,35 +195,29 @@ int main()
 		    	if(pid == 0)
 		    	{
 		    		Unlock(QueueName);
-		    		exit(-1);
-		    	}
-		    	else
-		    	{
-		    		printf("PARENT: child unlock pid = %d\n", pid);
+		    		exit(1);
 		    	}
 		    } else if(strncmp(message, "Unlocked", sizeof(message)) == 0)
 		    {
 		    	LogDaemon("Phase", "Dormant");
-		    	pid = fork();
-				if(pid == 0)
+		    	timerPID = fork();
+				if(timerPID == 0)
 				{
 					if(StartTimer(QueueName)==0)
 					{
-						printf("\nTimer Closed successfully\n");
+
 						exit(0);
 					}
 					else 
 					{
-						printf("Something went wrong with the timer!\n");
-						exit(-1);
+
+						exit(1);
 					}
-				}else 
-				{
-					printf("PARENT: child timer pid = %d\n", pid);
 				}
 		    }
     	}
     }
+    LogDaemon("Shutdown", "Closing Queue and shutting down");
     CloseQueue(mq, QueueName);
     return 0;
 }

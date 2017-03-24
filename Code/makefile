@@ -1,10 +1,10 @@
 daemonObjects = main.o logger.o MessageQueue.o timer.o Auditor.o Backup.o
-programs = DaemonTest
+programs = InspectoMus
 headers = log.h MessageQueue.h timer.h Auditor.h Backup.h
 
 
 DaemonTest : $(daemonObjects)
-	gcc -o DaemonTest $(daemonObjects) -lrt -g
+	gcc -o InspectoMus $(daemonObjects) -lrt -g
 
 
 main.o : main.c $(headers)
@@ -26,4 +26,4 @@ MessageQueue.o : MessageQueue.c MessageQueue.h
 	gcc -c MessageQueue.c -lrt -g
 
 clean: 
-	rm $(objects) $(programs)
+	rm $(daemonObjects) $(programs)

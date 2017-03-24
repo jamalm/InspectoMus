@@ -31,6 +31,12 @@ void LogErr(char* name, char* message)
 void LogDaemon(char* name, char* message)
 {
     openlog(name, LOG_PID|LOG_CONS, LOG_DAEMON);
-    syslog(LOG_ALERT, message);
+    syslog(LOG_INFO, message);
     closelog();
+}
+void LogErrDaemon(char *name, char *message)
+{
+    openlog(name, LOG_PID|LOG_CONS, LOG_DAEMON);
+    syslog(LOG_ERR, message);
+    closelog();	
 }
