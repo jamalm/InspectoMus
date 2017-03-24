@@ -20,4 +20,6 @@ then transfer the edits made that day to the live site for the next day.
 # Side Notes:
 1. An Admin script is added to start, stop and also to begin a backup at any time for the daemon at the request of root user.
 
-2. For those that don't know; Daemon: Runs around in the shadows(background) doing devilish deeds
+For those that don't know; 
+  Daemon: Runs around in the shadows doing devilish deeds
+  
