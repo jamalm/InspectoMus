@@ -50,7 +50,9 @@ int main()
 			LogDaemon("Init", "Waiting for parent to terminate");
 			sleep(1);
 		}
+		//unmask
 		umask(0);
+		//set session leader
 		if(setsid() < 0)
 		{
 			LogErrDaemon("Set SID", "Failure");
@@ -59,7 +61,7 @@ int main()
 		{
 			LogDaemon("Init sid", "Success");
 		}
-		
+		//change to root directory
 		if(chdir("/") < 0)
 		{
 			LogErrDaemon("ChangeDir", "Failure");
@@ -74,11 +76,13 @@ int main()
 		{
 			close(fd);
 		} 
+		//ignore child reaping responsibilites
 		signal(SIGCHLD, SIG_IGN);
 		LogDaemon("Init", "Completed");
 	}
 	pid_t pid;
     
+    //queue name
     char* QueueName = "/Daemon_Manager";
     //2 Phases
     //Active Phase
@@ -89,7 +93,6 @@ int main()
     
     if(mq==-1)
     {
-        printf("ERROR: Opening Message Queue Failed!\n Exiting...\n");
         LogErr("Queue", "Error Opening");
         exit(0);
     } 
@@ -123,6 +126,7 @@ int main()
     pid = fork();
     if(pid == 0)
     {
+    //remove old rules
     	RemoveRules();
     	exit(1);
     }
@@ -130,16 +134,14 @@ int main()
     pid = fork();
     if(pid == 0)
     {
+    	//wait for removing then add rules for audit to watch
     	sleep(1);
         AddRules();
         exit(1);
     }
     
 
-    //Begin Active Phase
-    //Lock out other users from directory
-    //Create process to Create Backup
-    //Create process to Create Transfer using changelog 
+
     
     if(pid != 0)
     {
@@ -151,10 +153,21 @@ int main()
     	    //parent watches for messages incoming from the queue
 		    char* message = Listen(mq);
 		    LogDaemon("Message From Queue", message);
-
+		    
+		    
+		    
+	        //Begin Active Phase
+			//Lock out other users from directory
+			//Create process to Create Backup
+			//Create process to Create Transfer
+			//Unlock directory
+			
+			
+			//Admin requesting a shutdown
 		    if(strncmp(message, "Shutdown", sizeof(message)) == 0)
 		    {
 		    	LogDaemon("Status", "Shutting Down");
+		    	//close timer
 		    	kill(timerPID, SIGKILL);
 		    	LogDaemon("Timer", "Killing timer");
 		    	break;
@@ -164,6 +177,7 @@ int main()
 		    {
 		    	//it is midnight, start active phase of locking, backing up and transfer
 		    	LogDaemon("Phase", "Active");
+		    	//close timer
 		    	kill(timerPID, SIGKILL);
 		    	LogDaemon("Timer", "Killing timer");
 		    	//lock directory
@@ -173,7 +187,8 @@ int main()
 		    		Lockup(QueueName);
 		    		exit(-1);
 		    	}
-		    } else if(strncmp(message, "Locked", sizeof(message)) == 0)
+		    }// now begin backup  
+		    else if(strncmp(message, "Locked", sizeof(message)) == 0)
 		    {
 		    	pid = fork();
 		    	if(pid == 0)
@@ -181,7 +196,8 @@ int main()
 		    		Backup(QueueName);
 		    		exit(-1);
 		    	}
-		    } else if(strncmp(message, "Backed Up", sizeof(message)) == 0)
+		    }//begin transfer of updates 
+		    else if(strncmp(message, "Backed Up", sizeof(message)) == 0)
 		    {
 		    	pid = fork();
 		    	if(pid == 0)
@@ -189,7 +205,8 @@ int main()
 		    		Transfer(QueueName);
 		    		exit(1);
 		    	}
-		    } else if(strncmp(message, "Transferred", sizeof(message)) == 0)
+		    }//unlock directory after backu/transfer completed 
+		    else if(strncmp(message, "Transferred", sizeof(message)) == 0)
 		    {
 		    	pid = fork();
 		    	if(pid == 0)
@@ -197,7 +214,8 @@ int main()
 		    		Unlock(QueueName);
 		    		exit(1);
 		    	}
-		    } else if(strncmp(message, "Unlocked", sizeof(message)) == 0)
+		    }//begin timer again and enter dormant phase 
+		    else if(strncmp(message, "Unlocked", sizeof(message)) == 0)
 		    {
 		    	LogDaemon("Phase", "Dormant");
 		    	timerPID = fork();
@@ -217,6 +235,7 @@ int main()
 		    }
     	}
     }
+    //close queue before shutting down
     LogDaemon("Shutdown", "Closing Queue and shutting down");
     CloseQueue(mq, QueueName);
     return 0;

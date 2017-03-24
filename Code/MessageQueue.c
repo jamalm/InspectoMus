@@ -9,7 +9,8 @@
 #include "log.h"
 
 
-
+//this is mostly for clean readable code in the daemon program
+//creates the initial queue
 mqd_t CreateMasterQueue(char* name)
 {
 
@@ -31,11 +32,12 @@ mqd_t CreateMasterQueue(char* name)
 
     if(mq == -1)
     {
-        printf("\nerror encountered %s\n", strerror(errno));
+        LogErrDaemon("Queue", "Error Occured");
     }
     return mq;
 }
 
+//allows the daemon to listen for a message
 char* Listen(mqd_t mq)
 {
     //char buffer [1024+1];
@@ -52,9 +54,11 @@ char* Listen(mqd_t mq)
     }
 }
 
+
+//safely cleans up queue at termination of daemon
 void CloseQueue(mqd_t mq, char* Qname)
 {
-    printf("\nClosing Queue..\n");
+
     LogDaemon("Queue", "Closed");
     mq_close(mq);
     mq_unlink(Qname);

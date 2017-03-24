@@ -6,6 +6,8 @@
 #include "log.h"
 #include "timer.h"
 
+
+//timer starts here
 int StartTimer(char* Qname)
 {
     //create time stuff
@@ -55,6 +57,7 @@ int StartTimer(char* Qname)
     return 1;
 }
 
+//primarily used for processes that create file reports, allows for datestamp tags
 char* GetDate()
 {
 	char* date = malloc(sizeof(char)*100);
@@ -66,6 +69,7 @@ char* GetDate()
     time(&now);
     timeinfo = localtime(&now);
 
+	//format string to be our time format, not american
     strftime(date, sizeof(date)*2, "%e-%m-%G", timeinfo);
     
     return date;

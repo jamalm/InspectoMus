@@ -12,8 +12,10 @@
 char* lockperms[] = {"chmod", "-R", "000","/var/www/html/internal", NULL};
 char* unlockperms[] = {"chmod", "-R", "777","/var/www/html/internal", NULL};
 
+//used to parse the internal dir path to the live dir path
 char* Replace(const char*, char*, char*);
 
+//this locks up the internal dir while backup/transfer occurs
 void Lockup(char* Qname)
 {
 	mqd_t mq;
@@ -31,6 +33,7 @@ void Lockup(char* Qname)
 	exit(127);
 }
 
+//this unlocks after backup/transfer completes
 void Unlock(char* Qname)
 {
 	mqd_t mq;
@@ -51,6 +54,7 @@ void Unlock(char* Qname)
 	exit(127);
 }
 
+//Backs up the live site to a zip file in the backups folder
 void Backup(char* Qname)
 {
     mqd_t mq;
@@ -79,6 +83,7 @@ void Backup(char* Qname)
 	exit(127);
 }
 
+//transfers updates to live site and logs updates into a file in backups/updates
 void Transfer(char* Qname)
 {
     mqd_t mq;
@@ -90,35 +95,34 @@ void Transfer(char* Qname)
 	FILE *fp;
 	int status = 0;
 	char files[1024];
+	
+	//finds files that were modified since the start of the current day
 	fp = popen("find /var/www/html/internal -daystart -mtime 0 -print", "r");
 	
 	while(fgets(files, sizeof(files), fp) != NULL)
 	{
-		Log("FilePathName", "Just Inside loop");
+
 		//Generate a list of updated files and then
 		//overwrite files in live with modified files in internal folders
 		FILE* fp2;
 		//first we copy the file over to the record, 
-		Log("FilePathName", "filename is being created");
 		char filename[41] = "/var/www/html/backups/updates/";
-		Log("FilePathName", "date is being created");
 		char * date = GetDate();
-		Log("FilePathName", date);
 		strcat(filename, date);
-		Log("FilePathName", filename);
+		
 		fp2 = fopen(filename, "a");
 		fprintf(fp2, "%s", files);
 		fclose(fp2);
 		
 				
-		//now get dest folder
+		//now get dest folder by parsing internal path into live path
 		char* destFile = Replace(files, "internal", "live");
 		
 		//create path
 		char pathToFile[1024];
 		memset(pathToFile, 0, sizeof(pathToFile));
 		strcat(pathToFile, "cp -Ru ");
-		strtok(files, "\n");
+		strtok(files, "\n");	//remove carriage return from find command
 		strcat(files, " ");
 		strcat(files, destFile);
 		strcat(pathToFile, files);
@@ -150,6 +154,7 @@ void Transfer(char* Qname)
     mq_close(mq);
 }
 
+//changes the "Internal" to "live" in the dir path
 char *Replace(const char *str, char *orig, char *rep)
 {
 	char buffer[4096];
@@ -157,25 +162,14 @@ char *Replace(const char *str, char *orig, char *rep)
 	
 	if(!(p = strstr(str, orig)))	//is orig even in str?
 	{
+	//if not just return str
 		return str;
 	}
-	//size_t newlen = strlen(str) - strlen(orig) + strlen(rep);
-	//char buffer[newlen+1];
 	
-	//copy the first segment of the path
-	//memcpy(buffer, str, p - str);
-	
-	//copy the replacement word
-	//memcpy(buffer + (p - str), rep, strlen(rep));
-	
-	//copy the end segment of the path
-	//strcpy(buffer +(p - str) + strlen(rep), p + strlen(orig));
-	
-	//return buffer;
-	
+	//some c parsing magic
 	strncpy(buffer, str, p-str);	//copy chars from str to orig
 	buffer[p-str] = '\0';
-	
+	//format it and send it on its way
 	sprintf(buffer + (p-str), "%s%s", rep, p+strlen(orig));
 
 	return buffer;
